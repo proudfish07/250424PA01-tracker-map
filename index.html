@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>失學少女追蹤地圖</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map { height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    const map = L.map('map').setView([22.91, 121.09], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const animalIcon = L.icon({
+      iconUrl: 'https://cdn-icons-png.flaticon.com/512/616/616408.png',
+      iconSize: [40, 40],
+      iconAnchor: [20, 40],
+      popupAnchor: [0, -40]
+    });
+
+    // 替換為你的 Google Sheet CSV 連結
+    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMQAVWyU35axF8U2xIOjIsvD7FpCFjsbdlOGZYhZG5XF7qGgIsOoVc0EaFSpcda6jiObHTvUtbXF9U/pub?output=csv';
+
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        let data = results.data
+          .filter(d => d.lat && d.lng)  // 濾除空白列
+          .map(d => ({
+            lat: parseFloat(d.lat),
+            lng: parseFloat(d.lng),
+            timestamp: d.timestamp,
+            note: d.note
+          }))
+          .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        const latlngs = data.map(p => [p.lat, p.lng]);
+
+        if (latlngs.length === 0) return;
+
+        // 畫線
+        const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+        map.fitBounds(polyline.getBounds());
+
+        // 所有歷史點位
+        data.slice(0, -1).forEach(p => {
+          L.circleMarker([p.lat, p.lng], {
+            radius: 6,
+            color: 'gray',
+            fillColor: '#555',
+            fillOpacity: 0.6
+          }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
+        });
+
+        // 最新點位：加上動物圖示
+        const latest = data[data.length - 1];
+        L.marker([latest.lat, latest.lng], { icon: animalIcon })
+          .addTo(map)
+          .bindPopup(`<b>最新位置</b><br>${latest.timestamp}<br>${latest.note || ''}`);
+      }
+    });
+  </script>
+</body>
+</html>
