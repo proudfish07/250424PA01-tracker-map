@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>失學少女追蹤地圖</title>
+  <title>動物追蹤地圖</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <style>
@@ -17,18 +17,22 @@
 
   <script>
     const map = L.map('map').setView([22.91, 121.09], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors'
+
+    // 使用 Esri Topographic 地形圖底圖
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{x}/{y}', {
+      attribution: 'Tiles &copy; Esri &mdash; Source: Esri, USGS, NOAA',
+      maxZoom: 18
     }).addTo(map);
 
+    // 替換成你的自訂 icon 圖片（放在 repo 同一層）
     const animalIcon = L.icon({
-      iconUrl: 'https://cdn-icons-png.flaticon.com/512/616/616408.png',
+      iconUrl: 'animal-icon.png',  // ← 你上傳的圖片檔案名
       iconSize: [40, 40],
       iconAnchor: [20, 40],
       popupAnchor: [0, -40]
     });
 
-    // 替換為你的 Google Sheet CSV 連結
+    // Google Sheet 的 CSV 連結
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMQAVWyU35axF8U2xIOjIsvD7FpCFjsbdlOGZYhZG5XF7qGgIsOoVc0EaFSpcda6jiObHTvUtbXF9U/pub?output=csv';
 
     Papa.parse(csvUrl, {
@@ -36,7 +40,7 @@
       header: true,
       complete: function(results) {
         let data = results.data
-          .filter(d => d.lat && d.lng)  // 濾除空白列
+          .filter(d => d.lat && d.lng)
           .map(d => ({
             lat: parseFloat(d.lat),
             lng: parseFloat(d.lng),
@@ -53,7 +57,7 @@
         const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
         map.fitBounds(polyline.getBounds());
 
-        // 所有歷史點位
+        // 顯示每一個歷史點
         data.slice(0, -1).forEach(p => {
           L.circleMarker([p.lat, p.lng], {
             radius: 6,
@@ -63,7 +67,7 @@
           }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
         });
 
-        // 最新點位：加上動物圖示
+        // 最新點位 → 使用自訂 icon
         const latest = data[data.length - 1];
         L.marker([latest.lat, latest.lng], { icon: animalIcon })
           .addTo(map)
