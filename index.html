@@ -18,10 +18,9 @@
   <script>
     const map = L.map('map').setView([22.91, 121.09], 13);
 
-    // 使用 Esri Topographic 地形圖底圖
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{x}/{y}', {
-    attribution: 'Tiles &copy; Esri — Source: Esri, USGS, NOAA',
-      maxZoom: 18
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'&copy; OpenStreetMap contributors'
     }).addTo(map);
 
     // 替換成你的自訂 icon 圖片（放在 repo 同一層）
