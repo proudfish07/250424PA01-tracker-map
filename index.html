@@ -7,6 +7,19 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     #map { height: 100vh; }
+    .legend {
+      background: white;
+      line-height: 1.5;
+      padding: 10px;
+      font-size: 14px;
+      border-radius: 8px;
+      box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    }
+    .legend img {
+      vertical-align: middle;
+      height: 20px;
+      width: 20px;
+    }
   </style>
 </head>
 <body>
@@ -30,9 +43,16 @@
     // 自訂圖示
     const animalIcon = L.icon({
       iconUrl: 'animal-icon.png',
-      iconSize: [80, 80],
+      iconSize: [40, 40],
       iconAnchor: [20, 40],
       popupAnchor: [0, -40]
+    });
+
+    const eyeIcon = L.icon({
+      iconUrl: 'eye-icon.png',
+      iconSize: [25, 25],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
     });
 
     const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMQAVWyU35axF8U2xIOjIsvD7FpCFjsbdlOGZYhZG5XF7qGgIsOoVc0EaFSpcda6jiObHTvUtbXF9U/pub?output=csv';
@@ -69,10 +89,11 @@
 
           // 歷史點
           trackPoints.slice(0, -1).forEach(p => {
+            const color = (p.note && p.note.includes('發現點')) ? 'red' : 'gray';
             L.circleMarker([p.lat, p.lng], {
               radius: 6,
-              color: 'gray',
-              fillColor: '#555',
+              color: color,
+              fillColor: color,
               fillOpacity: 0.6
             }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
           });
@@ -86,12 +107,33 @@
 
         // 額外標記點（不連線）
         markerPoints.forEach(p => {
-          L.marker([p.lat, p.lng])
-            .addTo(map)
-            .bindPopup(`<b>${p.note || '標記點'}</b>`);
+          if (p.note && p.note.includes('監聽點')) {
+            L.marker([p.lat, p.lng], { icon: eyeIcon })
+              .addTo(map)
+              .bindPopup(`<b>${p.note}</b>`);
+          } else {
+            L.marker([p.lat, p.lng])
+              .addTo(map)
+              .bindPopup(`<b>${p.note || '標記點'}</b>`);
+          }
         });
       }
     });
+
+    // 圖例
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function(map) {
+      const div = L.DomUtil.create('div', 'legend');
+      div.innerHTML = `
+        <b>圖例</b><br>
+        <img src="animal-icon.png"> 最新位置<br>
+        <span style="color: blue;">●</span> 移動路徑<br>
+        <span style="color: red;">●</span> 發現點<br>
+        <img src="eye-icon.png"> 監聽點
+      `;
+      return div;
+    };
+    legend.addTo(map);
   </script>
 </body>
 </html>
