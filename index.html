@@ -40,16 +40,34 @@
     // 加入比例尺
     L.control.scale().addTo(map);
 
+    // 顯示使用者位置
+    map.locate({ setView: true, maxZoom: 16 });
+    map.on('locationfound', function(e) {
+      L.circleMarker(e.latlng, {
+        radius: 6,
+        color: 'blue',
+        fillColor: '#30f',
+        fillOpacity: 0.6
+      }).addTo(map).bindPopup("你目前的位置").openPopup();
+    });
+
     // 自訂圖示
     const animalIcon = L.icon({
       iconUrl: 'animal-icon.png',
-      iconSize: [60, 40],
+      iconSize: [40, 60],
       iconAnchor: [20, 40],
       popupAnchor: [0, -40]
     });
 
     const eyeIcon = L.icon({
       iconUrl: 'eye-icon.png',
+      iconSize: [25, 25],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
+    });
+
+    const signalIcon = L.icon({
+      iconUrl: 'signal-icon.png',
       iconSize: [25, 25],
       iconAnchor: [12, 12],
       popupAnchor: [0, -12]
@@ -89,13 +107,18 @@
 
           // 歷史點
           trackPoints.slice(0, -1).forEach(p => {
-            const color = (p.note && p.note.includes('發現點')) ? 'red' : 'gray';
-            L.circleMarker([p.lat, p.lng], {
-              radius: 6,
-              color: color,
-              fillColor: color,
-              fillOpacity: 0.6
-            }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
+            if (p.note && p.note.includes('發現點')) {
+              L.marker([p.lat, p.lng], { icon: eyeIcon })
+                .addTo(map)
+                .bindPopup(`<b>${p.note}</b><br>${p.timestamp}`);
+            } else {
+              L.circleMarker([p.lat, p.lng], {
+                radius: 6,
+                color: 'gray',
+                fillColor: 'gray',
+                fillOpacity: 0.6
+              }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
+            }
           });
 
           // 最新點
@@ -108,7 +131,7 @@
         // 額外標記點（不連線）
         markerPoints.forEach(p => {
           if (p.note && p.note.includes('監聽點')) {
-            L.marker([p.lat, p.lng], { icon: eyeIcon })
+            L.marker([p.lat, p.lng], { icon: signalIcon })
               .addTo(map)
               .bindPopup(`<b>${p.note}</b>`);
           } else {
@@ -128,8 +151,8 @@
         <b>圖例</b><br>
         <img src="animal-icon.png"> 最新位置<br>
         <span style="color: blue;">●</span> 移動路徑<br>
-        <span style="color: red;">●</span> 發現點<br>
-        <img src="eye-icon.png"> 監聽點
+        <img src="eye-icon.png"> 發現點<br>
+        <img src="signal-icon.png"> 監聽點
       `;
       return div;
     };
