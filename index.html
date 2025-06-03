@@ -134,6 +134,10 @@
             L.marker([p.lat, p.lng], { icon: signalIcon })
               .addTo(map)
               .bindPopup(`<b>${p.note}</b>`);
+          } else if(p.note && p.note.includes('發現點')) {
+             L.marker([p.lat, p.lng], { icon: eyeIcon })
+              .addTo(map)
+              .bindPopup(`<b>${p.note}</b>`);
           } else {
             L.marker([p.lat, p.lng])
               .addTo(map)
