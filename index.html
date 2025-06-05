@@ -31,10 +31,10 @@
   <script>
     const map = L.map('map').setView([22.91, 121.09], 15);
 
-    // 使用 OpenStreetMap 底圖
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19
+    // 使用 OpenTopoMap 底圖（有等高線/地形）
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data: &copy; OpenTopoMap (CC-BY-SA)',
+      maxZoom: 17
     }).addTo(map);
 
     // 加入比例尺
