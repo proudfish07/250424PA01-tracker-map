@@ -14,11 +14,18 @@
       font-size: 14px;
       border-radius: 8px;
       box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      margin: 6px;
     }
     .legend img {
       vertical-align: middle;
       height: 20px;
       width: 20px;
+    }
+    .compass-control {
+      background: transparent;
+      box-shadow: none;
+      padding: 0;
+      margin: 8px;
     }
   </style>
 </head>
@@ -40,6 +47,29 @@
 
     // 加入比例尺
     L.control.scale().addTo(map);
+
+    // 指北針（自訂 PNG 圖示）
+    const compassControl = L.control({ position: 'topright' });
+    compassControl.onAdd = function(map) {
+      var div = L.DomUtil.create('div', 'compass-control');
+      div.innerHTML = '<img src="compass.png" style="width:50px; height:auto;" alt="指北針">';
+      return div;
+    };
+    compassControl.addTo(map);
+
+    // 資訊面板 control（已移除 github 和 csv 連結）
+    const infoPanel = L.control({ position: 'topright' });
+    infoPanel.onAdd = function(map) {
+      const div = L.DomUtil.create('div', 'legend');
+      div.id = 'info-panel';
+      div.innerHTML = `
+        <b>資料資訊</b><br>
+        <span id="last-gps-date">最後定位：讀取中…</span><br>
+        <span id="last-signal-date">最後收訊：讀取中…</span>
+      `;
+      return div;
+    };
+    infoPanel.addTo(map);
 
     // 顯示使用者位置
     map.locate({ setView: true, maxZoom: 16 });
@@ -82,6 +112,31 @@
       complete: function(results) {
         let data = results.data.filter(d => d.lat && d.lng);
 
+        // 最後定位成功的日期：type = track 且有 lat/lng
+        const validTracks = results.data.filter(d => d.type === 'track' && d.lat && d.lng && d.timestamp);
+        const lastTrack = validTracks.length ? validTracks.reduce((a, b) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b) : null;
+        if (lastTrack) {
+          document.getElementById('last-gps-date').innerText = '最後定位：' + lastTrack.timestamp;
+        } else {
+          document.getElementById('last-gps-date').innerText = '最後定位：無資料';
+        }
+
+        // 最後收訊的日期：type = track 但 lat 或 lng 為空
+        const lastSignalRows = results.data.filter(d =>
+          d.type === 'track' &&
+          (!d.lat || !d.lng) &&
+          d.timestamp
+        );
+        const lastSignal = lastSignalRows.length
+          ? lastSignalRows.reduce((a, b) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b)
+          : null;
+        if (lastSignal) {
+          document.getElementById('last-signal-date').innerText = '最後收訊：' + lastSignal.timestamp;
+        } else {
+          document.getElementById('last-signal-date').innerText = '最後收訊：無資料';
+        }
+
+        // 原本的資料處理邏輯
         const trackPoints = data
           .filter(d => d.type === 'track')
           .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
@@ -156,7 +211,7 @@
 
     const scooterLayer = new L.GPX('scooter.gpx', {
       async: true,
-      polyline_options: { color: 'orange', weight: 4, dashArray: '4,4' },
+      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' },
       marker_options: {
         startIconUrl: null,
         endIconUrl: null,
