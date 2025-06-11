@@ -5,7 +5,6 @@
   <title>穿山甲追蹤地圖 250424PA01</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass/dist/leaflet-compass.css" />
   <style>
     #map { height: 100vh; }
     .legend {
@@ -29,21 +28,32 @@
       border-radius: 8px;
       box-shadow: 0 0 5px rgba(0,0,0,0.3);
       margin: 10px;
-      min-width: 180px;
-      max-width: 270px;
+      min-width: 260px;
+      max-width: 400px;
+      word-break: break-all;
+    }
+    .leaflet-control.compass-custom {
+      background: white;
+      padding: 4px;
+      border-radius: 6px;
+      box-shadow: 0 0 6px rgba(0,0,0,0.2);
+    }
+    .leaflet-control.compass-custom img {
+      width: 40px;
+      height: 40px;
+      display: block;
     }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/leaflet-compass/dist/leaflet-compass.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
   <script>
     const map = L.map('map').setView([22.91, 121.09], 15);
 
-    // 定義底圖
+    // 底圖
     const normalMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 19
@@ -52,7 +62,6 @@
       attribution: 'Map data: &copy; OpenTopoMap (CC-BY-SA)',
       maxZoom: 17
     });
-
     const baseMaps = {
       "一般地圖": normalMap,
       "等高線地圖": contourMap
@@ -87,19 +96,26 @@
       }
     });
 
-    // overlayMaps 只包含 GPX，不會因底圖切換而關閉
     const overlayMaps = {
       "車輛通行路線": carLayer,
       "摩托車路線": scooterLayer,
       "徒步路線": hikingLayer
     };
 
-    // 先加地圖切換控制（等高線/一般地圖）
     L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
 
-    // 再加指北針控制
-    const compass = new L.Control.Compass({ position: 'topright', autoActive: true, showDigit:true });
-    compass.addTo(map);
+    // 自訂 compass 圖示（右上角）
+    const CompassControl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function(map) {
+        const container = L.DomUtil.create('div', 'leaflet-control compass-custom');
+        const img = L.DomUtil.create('img', '', container);
+        img.src = 'compass.png';
+        img.alt = '指北針';
+        return container;
+      }
+    });
+    map.addControl(new CompassControl());
 
     // 預設底圖和所有 GPX 路線都加到地圖
     normalMap.addTo(map);
@@ -138,13 +154,13 @@
       popupAnchor: [0, -12]
     });
 
-    // 資訊欄（顯示最新定位時間與最後定位成功時間）
+    // 資訊欄（不含「時間」字樣）
     const infoControl = L.control({ position: 'topleft' });
     infoControl.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'info-control');
       div.innerHTML = `
-        <b>最新定位時間</b>：<span id="latest-time">資料載入中...</span><br>
-        <b>最後定位成功時間</b>：<span id="last-success-time">資料載入中...</span>
+        <b>最新定位</b>：<span id="latest-time">載入中...</span><br>
+        <b>最後成功</b>：<span id="last-success-time">載入中...</span>
       `;
       return div;
     };
@@ -157,25 +173,25 @@
       download: true,
       header: true,
       complete: function(results) {
-        // 所有 track，無論有沒有經緯度
+        // 所有 track（不管有沒有經緯度）
         const allTrack = results.data.filter(d => d.type === 'track' && d.timestamp);
 
-        // 最新定位時間（所有 track 裡面時間最大者）
-        let latestTrack = allTrack.reduce((max, curr) => 
+        // 最新定位（所有 track 中最新的）
+        let latestTrack = allTrack.reduce((max, curr) =>
           (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
         let latestTime = latestTrack ? latestTrack.timestamp : '無資料';
 
-        // 最後定位成功時間（有經緯度的 track 裡面時間最大者）
+        // 最後定位成功（有經緯度的 track 中最新的）
         const trackWithCoord = allTrack.filter(d => d.lat && d.lng);
-        let lastSuccessTrack = trackWithCoord.reduce((max, curr) => 
+        let lastSuccessTrack = trackWithCoord.reduce((max, curr) =>
           (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
         let lastSuccessTime = lastSuccessTrack ? lastSuccessTrack.timestamp : '無資料';
 
-        // 顯示在資訊欄
+        // 顯示在資訊欄（不加「時間」二字）
         document.getElementById('latest-time').textContent = latestTime;
         document.getElementById('last-success-time').textContent = lastSuccessTime;
 
-        // 以下為原本標記及路徑繪製
+        // 原本的資料畫點
         const trackPoints = trackWithCoord.map(d => ({
           lat: parseFloat(d.lat),
           lng: parseFloat(d.lng),
