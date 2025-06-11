@@ -5,7 +5,6 @@
   <title>穿山甲追蹤地圖 250424PA01</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <!-- 加入 leaflet-compass 的 CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet-compass/dist/leaflet-compass.css" />
   <style>
     #map { height: 100vh; }
@@ -38,13 +37,11 @@
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- 加入 leaflet-compass 的 JS -->
   <script src="https://cdn.jsdelivr.net/npm/leaflet-compass/dist/leaflet-compass.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
 
   <script>
-    // 地圖初始化
     const map = L.map('map').setView([22.91, 121.09], 15);
 
     // 定義底圖
@@ -57,24 +54,59 @@
       maxZoom: 17
     });
 
-    // baseMaps 供切換
     const baseMaps = {
       "一般地圖": normalMap,
       "等高線地圖": contourMap
     };
 
-    // overlayMaps 可根據需求加入
-    const overlayMaps = {};
+    // GPX 路線圖層
+    const carLayer = new L.GPX('car.gpx', {
+      async: true,
+      polyline_options: { color: 'red', weight: 4 },
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
+      }
+    });
+    const scooterLayer = new L.GPX('scooter.gpx', {
+      async: true,
+      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' },
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
+      }
+    });
+    const hikingLayer = new L.GPX('hiking.gpx', {
+      async: true,
+      polyline_options: { color: 'green', weight: 3, dashArray: '1,6' },
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
+      }
+    });
 
-    // 1. 先加地圖切換控制（等高線/一般地圖），位置 top right
+    // overlayMaps 只包含 GPX，不會因底圖切換而關閉
+    const overlayMaps = {
+      "車輛通行路線": carLayer,
+      "摩托車路線": scooterLayer,
+      "徒步路線": hikingLayer
+    };
+
+    // 先加地圖切換控制（等高線/一般地圖）
     L.control.layers(baseMaps, overlayMaps, { collapsed: false, position: 'topright' }).addTo(map);
 
-    // 2. 再加指北針控制，位置 top right（會排在地圖切換下方）
+    // 再加指北針控制
     const compass = new L.Control.Compass({ position: 'topright', autoActive: true, showDigit:true });
     compass.addTo(map);
 
-    // 加入底圖（預設一般地圖）
+    // 預設底圖和所有 GPX 路線都加到地圖
     normalMap.addTo(map);
+    carLayer.addTo(map);
+    scooterLayer.addTo(map);
+    hikingLayer.addTo(map);
 
     // 比例尺
     L.control.scale().addTo(map);
@@ -112,8 +144,7 @@
     infoControl.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'info-control');
       div.innerHTML = `
-        <b>資料資訊</b><br>
-        追蹤對象：穿山甲 250424PA01<br>
+        <b>最新定位</b><br>
         <span id="latest-info">資料載入中...</span>
       `;
       return div;
@@ -163,8 +194,9 @@
           L.marker([latest.lat, latest.lng], { icon: animalIcon })
             .addTo(map)
             .bindPopup(`<b>最新位置</b><br>${latest.timestamp}<br>${latest.note || ''}`);
+          // 資訊欄只顯示最後定位時間和經緯度
           document.getElementById('latest-info').innerHTML =
-            `最後更新：${latest.timestamp}<br>備註：${latest.note || '無'}`;
+            `座標：${latest.lat.toFixed(5)}, ${latest.lng.toFixed(5)}<br>時間：${latest.timestamp}`;
         } else {
           document.getElementById('latest-info').innerHTML = '無追蹤資料';
         }
@@ -182,9 +214,6 @@
       }
     });
 
-    // GPX 路線圖層（如有需求）
-    // ...省略...
-
     // 圖例
     const legend = L.control({ position: 'bottomright' });
     legend.onAdd = function(map) {
@@ -196,7 +225,7 @@
         <img src="eye-icon.png"> 發現點<br>
         <img src="signal-icon.png"> 監聽點<br>
         <span style="color: red;">━━</span> 車輛通行路線<br>
-        <span style="color: blue;">- - -</span> 摩托車路線<br>
+        <span style="color: yellow;">- - -</span> 摩托車路線<br>
         <span style="color: green;">⋯⋯⋯</span> 徒步路線
       `;
       return div;
