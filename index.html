@@ -37,18 +37,27 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
 
   <script>
-    const map = L.map('map').setView([22.91, 121.09], 15);
-
-    // 使用 OpenTopoMap 等高線底圖
-    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+    // 底圖
+    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
       maxZoom: 17,
-      attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
-    }).addTo(map);
+      attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a>'
+    });
+    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    });
 
-    // 加入比例尺
+    // 地圖初始化
+    const map = L.map('map', {
+      center: [22.91, 121.09],
+      zoom: 15,
+      layers: [topoLayer]
+    });
+
+    // 比例尺
     L.control.scale().addTo(map);
 
-    // 指北針（自訂 PNG 圖示，請將 compass.png 放置於專案資料夾）
+    // 指北針
     const compassControl = L.control({ position: 'topright' });
     compassControl.onAdd = function(map) {
       var div = L.DomUtil.create('div', 'compass-control');
@@ -57,19 +66,42 @@
     };
     compassControl.addTo(map);
 
-    // 資訊面板 control（已移除 github 和 csv 連結）
-    const infoPanel = L.control({ position: 'topright' });
-    infoPanel.onAdd = function(map) {
-      const div = L.DomUtil.create('div', 'legend');
-      div.id = 'info-panel';
-      div.innerHTML = `
+    // 資料資訊與圖例合併在右下角、左右並排
+    const infoLegendPanel = L.control({ position: 'bottomright' });
+    infoLegendPanel.onAdd = function(map) {
+      const container = L.DomUtil.create('div', 'legend');
+      container.style.display = 'flex';
+      container.style.flexDirection = 'row';
+      container.style.alignItems = 'flex-start';
+      container.style.gap = '24px';
+
+      // 資料資訊
+      const infoDiv = document.createElement('div');
+      infoDiv.innerHTML = `
         <b>資料資訊</b><br>
         <span id="last-gps-date">最後定位：讀取中…</span><br>
         <span id="last-signal-date">最後收訊：讀取中…</span>
       `;
-      return div;
+      infoDiv.style.minWidth = '140px';
+
+      // 圖例
+      const legendDiv = document.createElement('div');
+      legendDiv.innerHTML = `
+        <b>圖例</b><br>
+        <img src="animal-icon.png" onerror="this.style.display='none'"> 最新位置<br>
+        <span style="color: blue;">●</span> 移動路徑<br>
+        <img src="eye-icon.png" onerror="this.style.display='none'"> 發現點<br>
+        <img src="signal-icon.png" onerror="this.style.display='none'"> 監聽點<br>
+        <span style="color: red;">━━</span> 車輛通行路線<br>
+        <span style="color: yellow;">- - -</span> 摩托車路線<br>
+        <span style="color: green;">⋯⋯⋯</span> 徒步路線
+      `;
+
+      container.appendChild(infoDiv);
+      container.appendChild(legendDiv);
+      return container;
     };
-    infoPanel.addTo(map);
+    infoLegendPanel.addTo(map);
 
     // 顯示使用者位置
     map.locate({ setView: true, maxZoom: 16 });
@@ -235,34 +267,21 @@
       if (hikingLayer._endMarker) map.removeLayer(hikingLayer._endMarker);
     });
 
+    // 底圖與疊加圖層控制器
+    const baseLayers = {
+      "等高線": topoLayer,
+      "一般地圖": osmLayer
+    };
     const overlayMaps = {
       "車輛通行路線": carLayer,
       "摩托車路線": scooterLayer,
       "徒步路線": hikingLayer
     };
+    L.control.layers(baseLayers, overlayMaps, { collapsed: false }).addTo(map);
 
-    L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
     carLayer.addTo(map);
     scooterLayer.addTo(map);
     hikingLayer.addTo(map);
-
-    // 圖例
-    const legend = L.control({ position: 'bottomright' });
-    legend.onAdd = function(map) {
-      const div = L.DomUtil.create('div', 'legend');
-      div.innerHTML = `
-        <b>圖例</b><br>
-        <img src="animal-icon.png"> 最新位置<br>
-        <span style="color: blue;">●</span> 移動路徑<br>
-        <img src="eye-icon.png"> 發現點<br>
-        <img src="signal-icon.png"> 監聽點<br>
-        <span style="color: red;">━━</span> 車輛通行路線<br>
-        <span style="color: yellow;">- - -</span> 摩托車路線<br>
-        <span style="color: green;">⋯⋯⋯</span> 徒步路線
-      `;
-      return div;
-    };
-    legend.addTo(map);
   </script>
 </body>
 </html>
