@@ -27,14 +27,15 @@
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
 
   <script>
     const map = L.map('map').setView([22.91, 121.09], 15);
 
-    // 使用 OpenTopoMap 底圖（有等高線/地形）
-    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      attribution: 'Map data: &copy; OpenTopoMap (CC-BY-SA)',
-      maxZoom: 17
+    // 使用 OpenStreetMap 底圖
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors',
+      maxZoom: 19
     }).addTo(map);
 
     // 加入比例尺
@@ -54,7 +55,7 @@
     // 自訂圖示
     const animalIcon = L.icon({
       iconUrl: 'animal-icon.png',
-      iconSize: [80, 80],
+      iconSize: [40, 40],
       iconAnchor: [20, 40],
       popupAnchor: [0, -40]
     });
@@ -99,13 +100,11 @@
             note: d.note
           }));
 
-        // 畫軌跡線
         const latlngs = trackPoints.map(p => [p.lat, p.lng]);
         if (latlngs.length) {
           const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
           map.fitBounds(polyline.getBounds());
 
-          // 歷史點
           trackPoints.slice(0, -1).forEach(p => {
             if (p.note && p.note.includes('發現點')) {
               L.marker([p.lat, p.lng], { icon: eyeIcon })
@@ -121,21 +120,15 @@
             }
           });
 
-          // 最新點
           const latest = trackPoints[trackPoints.length - 1];
           L.marker([latest.lat, latest.lng], { icon: animalIcon })
             .addTo(map)
             .bindPopup(`<b>最新位置</b><br>${latest.timestamp}<br>${latest.note || ''}`);
         }
 
-        // 額外標記點（不連線）
         markerPoints.forEach(p => {
           if (p.note && p.note.includes('監聽點')) {
             L.marker([p.lat, p.lng], { icon: signalIcon })
-              .addTo(map)
-              .bindPopup(`<b>${p.note}</b>`);
-          } else if(p.note && p.note.includes('發現點')) {
-             L.marker([p.lat, p.lng], { icon: eyeIcon })
               .addTo(map)
               .bindPopup(`<b>${p.note}</b>`);
           } else {
@@ -147,6 +140,33 @@
       }
     });
 
+    // GPX 路線圖層
+    const carLayer = new L.GPX('car.gpx', {
+      async: true,
+      polyline_options: { color: 'red', weight: 4 }
+    });
+
+    const scooterLayer = new L.GPX('scooter.gpx', {
+      async: true,
+      polyline_options: { color: 'blue', weight: 4, dashArray: '4,4' }
+    });
+
+    const hikingLayer = new L.GPX('hiking.gpx', {
+      async: true,
+      polyline_options: { color: 'green', weight: 3, dashArray: '1,6' }
+    });
+
+    const overlayMaps = {
+      "車輛通行路線": carLayer,
+      "摩托車路線": scooterLayer,
+      "徒步路線": hikingLayer
+    };
+
+    L.control.layers(null, overlayMaps, { collapsed: false }).addTo(map);
+    carLayer.addTo(map);
+    scooterLayer.addTo(map);
+    hikingLayer.addTo(map);
+
     // 圖例
     const legend = L.control({ position: 'bottomright' });
     legend.onAdd = function(map) {
@@ -156,7 +176,10 @@
         <img src="animal-icon.png"> 最新位置<br>
         <span style="color: blue;">●</span> 移動路徑<br>
         <img src="eye-icon.png"> 發現點<br>
-        <img src="signal-icon.png"> 監聽點
+        <img src="signal-icon.png"> 監聽點<br>
+        <span style="color: red;">━━</span> 車輛通行路線<br>
+        <span style="color: blue;">- - -</span> 摩托車路線<br>
+        <span style="color: green;">⋯⋯⋯</span> 徒步路線
       `;
       return div;
     };
