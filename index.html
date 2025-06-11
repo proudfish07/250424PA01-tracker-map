@@ -1,287 +1,186 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>穿山甲追蹤地圖 250424PA01</title>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wildlife Triangulation Tool</title>
+  <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
+    body { margin: 0; font-family: sans-serif; }
     #map { height: 100vh; }
-    .legend {
+    .input-panel {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+      max-width: 380px;
+      margin: 1.2rem;
+      padding: 1rem;
+      position: absolute;
+      z-index: 1000;
+      left: 1.2rem;
+      top: 1.2rem;
+    }
+    .input-panel textarea { width: 100%; height: 100px; }
+    .input-panel button { margin: 0.5rem 0.5rem 0.5rem 0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+    th, td { padding: 0.5rem; border: 1px solid #ccc; text-align: center; }
+    .leaflet-control.legend {
       background: white;
       line-height: 1.5;
       padding: 10px;
       font-size: 14px;
       border-radius: 8px;
       box-shadow: 0 0 5px rgba(0,0,0,0.3);
-      margin: 6px;
-    }
-    .legend img {
-      vertical-align: middle;
-      height: 20px;
-      width: 20px;
-    }
-    .compass-control {
-      background: transparent;
-      box-shadow: none;
-      padding: 0;
-      margin: 8px;
     }
   </style>
 </head>
 <body>
+  <div class="input-panel">
+    <h2>觀測記錄與定位</h2>
+    <button onclick="recordPoint()">記錄觀測點</button>
+    <textarea id="input" placeholder="或手動輸入資料：緯度,經度,方位角，每行一筆"></textarea>
+    <button onclick="processInput()">從輸入資料定位</button>
+    <button onclick="shareLocation()">分享預測位置</button>
+    <div id="pointTable"></div>
+  </div>
   <div id="map"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
-
   <script>
-    // 底圖
-    const topoLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
-      maxZoom: 17,
-      attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a>'
-    });
-    const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    });
+    const map = L.map('map').setView([23.5, 121], 7);
+    // 使用有等高線/地形的 OpenTopoMap 底圖
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      attribution: 'Map data: &copy; OpenTopoMap (CC-BY-SA)',
+      maxZoom: 17
+    }).addTo(map);
 
-    // 地圖初始化
-    const map = L.map('map', {
-      center: [22.91, 121.09],
-      zoom: 15,
-      layers: [topoLayer]
-    });
+    let recordedPoints = [];
+    let currentPrediction = null;
 
-    // 比例尺
-    L.control.scale().addTo(map);
+    function bearingToRadians(b) {
+      return ((-b + 90 + 360) % 360) * Math.PI / 180;
+    }
 
-    // 指北針
-    const compassControl = L.control({ position: 'topright' });
-    compassControl.onAdd = function(map) {
-      var div = L.DomUtil.create('div', 'compass-control');
-      div.innerHTML = '<img src="compass.png" style="width:50px; height:auto;" alt="指北針">';
-      return div;
-    };
-    compassControl.addTo(map);
+    function lineFromPointBearing(lat, lon, bearing) {
+      const angle = bearingToRadians(bearing);
+      const dx = Math.cos(angle);
+      const dy = Math.sin(angle);
+      return { x: lon, y: lat, dx, dy, lat, lon, bearing };
+    }
 
-    // 資料資訊與圖例合併在右下角、左右並排
-    const infoLegendPanel = L.control({ position: 'bottomright' });
-    infoLegendPanel.onAdd = function(map) {
-      const container = L.DomUtil.create('div', 'legend');
-      container.style.display = 'flex';
-      container.style.flexDirection = 'row';
-      container.style.alignItems = 'flex-start';
-      container.style.gap = '24px';
+    function getIntersection(line1, line2) {
+      const { x: x1, y: y1, dx: dx1, dy: dy1 } = line1;
+      const { x: x2, y: y2, dx: dx2, dy: dy2 } = line2;
+      const det = dx1 * dy2 - dy1 * dx2;
+      if (Math.abs(det) < 1e-10) return null;
+      const t = ((x2 - x1) * dy2 - (y2 - y1) * dx2) / det;
+      return [y1 + dy1 * t, x1 + dx1 * t];
+    }
 
-      // 資料資訊
-      const infoDiv = document.createElement('div');
-      infoDiv.innerHTML = `
-        <b>資料資訊</b><br>
-        <span id="last-gps-date">最後定位：讀取中…</span><br>
-        <span id="last-signal-date">最後收訊：讀取中…</span>
-      `;
-      infoDiv.style.minWidth = '140px';
+    function updateInputArea() {
+      const existingLines = document.getElementById('input').value.trim().split('\n');
+      const lines = recordedPoints.map((p, i) => {
+        const existing = existingLines[i]?.split(',') || [];
+        const bearing = existing[2] ? existing[2] : '';
+        return `${p.lat.toFixed(5)},${p.lon.toFixed(5)},${bearing}`;
+      });
+      document.getElementById('input').value = lines.join('\n');
+    }
 
-      // 圖例
-      const legendDiv = document.createElement('div');
-      legendDiv.innerHTML = `
-        <b>圖例</b><br>
-        <img src="animal-icon.png" onerror="this.style.display='none'"> 最新位置<br>
-        <span style="color: blue;">●</span> 移動路徑<br>
-        <img src="eye-icon.png" onerror="this.style.display='none'"> 發現點<br>
-        <img src="signal-icon.png" onerror="this.style.display='none'"> 監聽點<br>
-        <span style="color: red;">━━</span> 車輛通行路線<br>
-        <span style="color: yellow;">- - -</span> 摩托車路線<br>
-        <span style="color: green;">⋯⋯⋯</span> 徒步路線
-      `;
+    function displayPointsAndCalculate(lines) {
+      map.eachLayer(layer => {
+        if (layer instanceof L.Marker || layer instanceof L.Polyline) map.removeLayer(layer);
+      });
 
-      container.appendChild(infoDiv);
-      container.appendChild(legendDiv);
-      return container;
-    };
-    infoLegendPanel.addTo(map);
+      let tableHtml = '<table><tr><th>#</th><th>緯度</th><th>經度</th><th>方位角</th></tr>';
 
-    // 顯示使用者位置
-    map.locate({ setView: true, maxZoom: 16 });
-    map.on('locationfound', function(e) {
-      L.circleMarker(e.latlng, {
-        radius: 6,
-        color: 'blue',
-        fillColor: '#30f',
-        fillOpacity: 0.6
-      }).addTo(map).bindPopup("你目前的位置").openPopup();
-    });
+      lines.forEach((point, idx) => {
+        const { lat, lon, bearing, dx, dy } = point;
+        const marker = L.marker([lat, lon]).addTo(map).bindPopup(`觀測點 ${idx + 1}<br>方位角: ${bearing.toFixed(1)}°<br>座標: ${lat.toFixed(5)}, ${lon.toFixed(5)}`);
+        const endLat = lat + dy * 0.1;
+        const endLon = lon + dx * 0.1;
+        L.polyline([[lat, lon], [endLat, endLon]], { color: 'red' }).addTo(map);
+        tableHtml += `<tr><td>${idx + 1}</td><td>${lat.toFixed(5)}</td><td>${lon.toFixed(5)}</td><td>${bearing.toFixed(1)}°</td></tr>`;
+      });
 
-    // 自訂圖示
-    const animalIcon = L.icon({
-      iconUrl: 'animal-icon.png',
-      iconSize: [40, 40],
-      iconAnchor: [20, 40],
-      popupAnchor: [0, -40]
-    });
+      tableHtml += '</table>';
+      document.getElementById('pointTable').innerHTML = tableHtml;
 
-    const eyeIcon = L.icon({
-      iconUrl: 'eye-icon.png',
-      iconSize: [25, 25],
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -12]
-    });
-
-    const signalIcon = L.icon({
-      iconUrl: 'signal-icon.png',
-      iconSize: [25, 25],
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -12]
-    });
-
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMQAVWyU35axF8U2xIOjIsvD7FpCFjsbdlOGZYhZG5XF7qGgIsOoVc0EaFSpcda6jiObHTvUtbXF9U/pub?output=csv';
-
-    Papa.parse(csvUrl, {
-      download: true,
-      header: true,
-      complete: function(results) {
-        let data = results.data.filter(d => d.lat && d.lng);
-
-        // 最後定位成功的日期：type = track 且有 lat/lng
-        const validTracks = results.data.filter(d => d.type === 'track' && d.lat && d.lng && d.timestamp);
-        const lastTrack = validTracks.length ? validTracks.reduce((a, b) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b) : null;
-        if (lastTrack) {
-          document.getElementById('last-gps-date').innerText = '最後定位：' + lastTrack.timestamp;
-        } else {
-          document.getElementById('last-gps-date').innerText = '最後定位：無資料';
+      let intersections = [];
+      for (let i = 0; i < lines.length; i++) {
+        for (let j = i + 1; j < lines.length; j++) {
+          const inter = getIntersection(lines[i], lines[j]);
+          if (inter) intersections.push(inter);
         }
+      }
 
-        // 最後收訊的日期：type = track 但 lat 或 lng 為空
-        const lastSignalRows = results.data.filter(d =>
-          d.type === 'track' &&
-          (!d.lat || !d.lng) &&
-          d.timestamp
-        );
-        const lastSignal = lastSignalRows.length
-          ? lastSignalRows.reduce((a, b) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b)
-          : null;
-        if (lastSignal) {
-          document.getElementById('last-signal-date').innerText = '最後收訊：' + lastSignal.timestamp;
-        } else {
-          document.getElementById('last-signal-date').innerText = '最後收訊：無資料';
-        }
+      if (intersections.length > 0) {
+        const avgLat = intersections.reduce((sum, p) => sum + p[0], 0) / intersections.length;
+        const avgLon = intersections.reduce((sum, p) => sum + p[1], 0) / intersections.length;
+        currentPrediction = { lat: avgLat, lon: avgLon };
+        L.marker([avgLat, avgLon], { color: 'blue' }).addTo(map)
+          .bindPopup(`預測位置<br>座標: ${avgLat.toFixed(5)}, ${avgLon.toFixed(5)}`).openPopup();
+        map.setView([avgLat, avgLon], 13);
+      }
+    }
 
-        // 原本的資料處理邏輯
-        const trackPoints = data
-          .filter(d => d.type === 'track')
-          .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-          .map(d => ({
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lng),
-            timestamp: d.timestamp,
-            note: d.note
-          }));
+    function processInput() {
+      const input = document.getElementById('input').value.trim().split('\n');
+      const lines = input.map(line => {
+        const [lat, lon, bearing] = line.split(',').map(Number);
+        return lineFromPointBearing(lat, lon, bearing);
+      });
+      displayPointsAndCalculate(lines);
+    }
 
-        const markerPoints = data
-          .filter(d => d.type === 'marker')
-          .map(d => ({
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lng),
-            note: d.note
-          }));
+    function recordPoint() {
+      if (!navigator.geolocation) {
+        alert('裝置不支援定位');
+        return;
+      }
 
-        const latlngs = trackPoints.map(p => [p.lat, p.lng]);
-        if (latlngs.length) {
-          const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-          map.fitBounds(polyline.getBounds());
+      navigator.geolocation.getCurrentPosition(pos => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        recordedPoints.push({ lat, lon, bearing: null });
+        updateInputArea();
+        alert(`已記錄座標：\n緯度: ${lat.toFixed(5)}, 經度: ${lon.toFixed(5)}\n請至下方手動輸入方位角`);
+      }, () => alert('無法取得定位資訊'));
+    }
 
-          trackPoints.slice(0, -1).forEach(p => {
-            if (p.note && p.note.includes('發現點')) {
-              L.marker([p.lat, p.lng], { icon: eyeIcon })
-                .addTo(map)
-                .bindPopup(`<b>${p.note}</b><br>${p.timestamp}`);
-            } else {
-              L.circleMarker([p.lat, p.lng], {
-                radius: 6,
-                color: 'gray',
-                fillColor: 'gray',
-                fillOpacity: 0.6
-              }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
-            }
-          });
+    function shareLocation() {
+      if (!currentPrediction) {
+        alert('尚未定位出預測位置');
+        return;
+      }
 
-          const latest = trackPoints[trackPoints.length - 1];
-          L.marker([latest.lat, latest.lng], { icon: animalIcon })
-            .addTo(map)
-            .bindPopup(`<b>最新位置</b><br>${latest.timestamp}<br>${latest.note || ''}`);
-        }
+      const text = `預測位置座標：\n緯度: ${currentPrediction.lat.toFixed(5)}, 經度: ${currentPrediction.lon.toFixed(5)}`;
+      if (navigator.share) {
+        navigator.share({
+          title: '野生動物預測位置',
+          text,
+          url: location.href
+        }).catch(err => console.error('分享失敗', err));
+      } else {
+        prompt('請手動複製以下資訊分享：', text);
+      }
+    }
 
-        markerPoints.forEach(p => {
-          if (p.note && p.note.includes('監聽點')) {
-            L.marker([p.lat, p.lng], { icon: signalIcon })
-              .addTo(map)
-              .bindPopup(`<b>${p.note}</b>`);
-          } else {
-            L.marker([p.lat, p.lng])
-              .addTo(map)
-              .bindPopup(`<b>${p.note || '標記點'}</b>`);
-          }
-        });
+    // Leaflet自訂圖例控制項（右下角）
+    L.Control.Legend = L.Control.extend({
+      options: { position: 'bottomright' },
+      onAdd: function (map) {
+        var div = L.DomUtil.create('div', 'leaflet-control legend');
+        div.innerHTML = `
+          <b>圖例</b><br>
+          <span style="color: red;">─</span> 觀測方位線<br>
+          <span style="color: blue;">●</span> 預測位置
+        `;
+        return div;
       }
     });
-
-    // GPX 路線圖層，強制移除起終點 marker
-    const carLayer = new L.GPX('car.gpx', {
-      async: true,
-      polyline_options: { color: 'red', weight: 4 },
-      marker_options: {
-        startIconUrl: null,
-        endIconUrl: null,
-        shadowUrl: null
-      }
-    }).on('loaded', function(e) {
-      if (carLayer._startMarker) map.removeLayer(carLayer._startMarker);
-      if (carLayer._endMarker) map.removeLayer(carLayer._endMarker);
-    });
-
-    const scooterLayer = new L.GPX('scooter.gpx', {
-      async: true,
-      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' },
-      marker_options: {
-        startIconUrl: null,
-        endIconUrl: null,
-        shadowUrl: null
-      }
-    }).on('loaded', function(e) {
-      if (scooterLayer._startMarker) map.removeLayer(scooterLayer._startMarker);
-      if (scooterLayer._endMarker) map.removeLayer(scooterLayer._endMarker);
-    });
-
-    const hikingLayer = new L.GPX('hiking.gpx', {
-      async: true,
-      polyline_options: { color: 'green', weight: 3, dashArray: '1,6' },
-      marker_options: {
-        startIconUrl: null,
-        endIconUrl: null,
-        shadowUrl: null
-      }
-    }).on('loaded', function(e) {
-      if (hikingLayer._startMarker) map.removeLayer(hikingLayer._startMarker);
-      if (hikingLayer._endMarker) map.removeLayer(hikingLayer._endMarker);
-    });
-
-    // 底圖與疊加圖層控制器
-    const baseLayers = {
-      "等高線": topoLayer,
-      "一般地圖": osmLayer
-    };
-    const overlayMaps = {
-      "車輛通行路線": carLayer,
-      "摩托車路線": scooterLayer,
-      "徒步路線": hikingLayer
-    };
-    L.control.layers(baseLayers, overlayMaps, { collapsed: false }).addTo(map);
-
-    carLayer.addTo(map);
-    scooterLayer.addTo(map);
-    hikingLayer.addTo(map);
+    map.addControl(new L.Control.Legend());
   </script>
 </body>
 </html>
