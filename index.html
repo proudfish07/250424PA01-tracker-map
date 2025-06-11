@@ -39,16 +39,16 @@
   <script>
     const map = L.map('map').setView([22.91, 121.09], 15);
 
-    // 使用 OpenStreetMap 底圖
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 19
+    // 使用 OpenTopoMap 等高線底圖
+    L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+      maxZoom: 17,
+      attribution: 'Map data: &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, SRTM | Map style: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
     }).addTo(map);
 
     // 加入比例尺
     L.control.scale().addTo(map);
 
-    // 指北針（自訂 PNG 圖示）
+    // 指北針（自訂 PNG 圖示，請將 compass.png 放置於專案資料夾）
     const compassControl = L.control({ position: 'topright' });
     compassControl.onAdd = function(map) {
       var div = L.DomUtil.create('div', 'compass-control');
