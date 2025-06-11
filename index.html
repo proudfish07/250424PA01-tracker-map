@@ -144,16 +144,28 @@
     const carLayer = new L.GPX('car.gpx', {
       async: true,
       polyline_options: { color: 'red', weight: 4 }
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
     });
 
     const scooterLayer = new L.GPX('scooter.gpx', {
       async: true,
-      polyline_options: { color: 'blue', weight: 4, dashArray: '4,4' }
+      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' }
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
     });
 
     const hikingLayer = new L.GPX('hiking.gpx', {
       async: true,
       polyline_options: { color: 'green', weight: 3, dashArray: '1,6' }
+      marker_options: {
+        startIconUrl: null,
+        endIconUrl: null,
+        shadowUrl: null
     });
 
     const overlayMaps = {
