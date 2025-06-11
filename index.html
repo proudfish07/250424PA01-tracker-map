@@ -40,7 +40,6 @@
   <script src="https://cdn.jsdelivr.net/npm/leaflet-compass/dist/leaflet-compass.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.5.1/gpx.min.js"></script>
-
   <script>
     const map = L.map('map').setView([22.91, 121.09], 15);
 
@@ -71,7 +70,7 @@
     });
     const scooterLayer = new L.GPX('scooter.gpx', {
       async: true,
-      polyline_options: { color: 'orange', weight: 4, dashArray: '4,4' },
+      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' },
       marker_options: {
         startIconUrl: null,
         endIconUrl: null,
@@ -139,13 +138,13 @@
       popupAnchor: [0, -12]
     });
 
-    // 資訊欄
+    // 資訊欄（顯示最新定位時間與最後定位成功時間）
     const infoControl = L.control({ position: 'topleft' });
     infoControl.onAdd = function(map) {
       const div = L.DomUtil.create('div', 'info-control');
       div.innerHTML = `
-        <b>最新定位</b><br>
-        <span id="latest-info">資料載入中...</span>
+        <b>最新定位時間</b>：<span id="latest-time">資料載入中...</span><br>
+        <b>最後定位成功時間</b>：<span id="last-success-time">資料載入中...</span>
       `;
       return div;
     };
@@ -194,11 +193,16 @@
           L.marker([latest.lat, latest.lng], { icon: animalIcon })
             .addTo(map)
             .bindPopup(`<b>最新位置</b><br>${latest.timestamp}<br>${latest.note || ''}`);
-          // 資訊欄只顯示最後定位時間和經緯度
-          document.getElementById('latest-info').innerHTML =
-            `座標：${latest.lat.toFixed(5)}, ${latest.lng.toFixed(5)}<br>時間：${latest.timestamp}`;
+
+          // 最新定位時間
+          document.getElementById('latest-time').textContent = latest ? latest.timestamp : '無資料';
+
+          // 最後定位成功時間
+          let lastSuccess = [...trackPoints].reverse().find(p => p.note && p.note.includes('定位成功'));
+          document.getElementById('last-success-time').textContent = lastSuccess ? lastSuccess.timestamp : '無資料';
         } else {
-          document.getElementById('latest-info').innerHTML = '無追蹤資料';
+          document.getElementById('latest-time').textContent = '無追蹤資料';
+          document.getElementById('last-success-time').textContent = '無追蹤資料';
         }
         markerPoints.forEach(p => {
           if (p.note && p.note.includes('監聽點')) {
