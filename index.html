@@ -140,7 +140,7 @@
       }
     });
 
-    // GPX 路線圖層
+    // GPX 路線圖層，強制移除起終點 marker
     const carLayer = new L.GPX('car.gpx', {
       async: true,
       polyline_options: { color: 'red', weight: 4 },
@@ -149,16 +149,22 @@
         endIconUrl: null,
         shadowUrl: null
       }
+    }).on('loaded', function(e) {
+      if (carLayer._startMarker) map.removeLayer(carLayer._startMarker);
+      if (carLayer._endMarker) map.removeLayer(carLayer._endMarker);
     });
 
     const scooterLayer = new L.GPX('scooter.gpx', {
       async: true,
-      polyline_options: { color: 'yellow', weight: 4, dashArray: '4,4' },
+      polyline_options: { color: 'orange', weight: 4, dashArray: '4,4' },
       marker_options: {
         startIconUrl: null,
         endIconUrl: null,
         shadowUrl: null
       }
+    }).on('loaded', function(e) {
+      if (scooterLayer._startMarker) map.removeLayer(scooterLayer._startMarker);
+      if (scooterLayer._endMarker) map.removeLayer(scooterLayer._endMarker);
     });
 
     const hikingLayer = new L.GPX('hiking.gpx', {
@@ -169,6 +175,9 @@
         endIconUrl: null,
         shadowUrl: null
       }
+    }).on('loaded', function(e) {
+      if (hikingLayer._startMarker) map.removeLayer(hikingLayer._startMarker);
+      if (hikingLayer._endMarker) map.removeLayer(hikingLayer._endMarker);
     });
 
     const overlayMaps = {
@@ -193,7 +202,7 @@
         <img src="eye-icon.png"> 發現點<br>
         <img src="signal-icon.png"> 監聽點<br>
         <span style="color: red;">━━</span> 車輛通行路線<br>
-        <span style="color: blue;">- - -</span> 摩托車路線<br>
+        <span style="color: yellow;">- - -</span> 摩托車路線<br>
         <span style="color: green;">⋯⋯⋯</span> 徒步路線
       `;
       return div;
