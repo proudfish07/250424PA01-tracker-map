@@ -178,13 +178,16 @@
       if (!mainData || !monitorData || !markerData) return;
 
   // 最近工作日
-      let latestTrack = mainData.reduce((max, curr) =>
-        (!max || (curr.timestamp && new Date(curr.timestamp) > new Date(max.timestamp))) ? curr : max, null);
+      const allWithTS = mainData.filter(d => d.timestamp && d.timestamp.trim() !== "");
+      let latestTrack = allWithTS.reduce((max, curr) =>
+        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
       let latestTime = latestTrack && latestTrack.timestamp ? latestTrack.timestamp : '無資料';
 
-  // 最後定位日
-      let lastSuccessTrack = mainData.reduce((max, curr) =>
-        (!max || (curr.lat && curr.lng && curr.timestamp && new Date(curr.timestamp) > new Date(max.timestamp))) ? curr : max, null);
+
+  //最後定位日
+      const allWithTSLatLng = mainData.filter(d => d.timestamp && d.timestamp.trim() !== "" && d.lat && d.lng);
+      let lastSuccessTrack = allWithTSLatLng.reduce((max, curr) =>
+        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
       let lastSuccessTime = lastSuccessTrack && lastSuccessTrack.timestamp ? lastSuccessTrack.timestamp : '無資料';
       
       document.getElementById('latest-time').textContent = latestTime;         // 最近工作日
