@@ -179,7 +179,7 @@
 
       // --------- 主資料：track 路徑 ---------
       const trackWithCoord = mainData.filter(d => d.lat && d.lng && d.timestamp);
-      // 最近定位日
+      // 最近工作日
       let latestTrack = trackWithCoord.reduce((max, curr) =>
         (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
       let latestTime = latestTrack ? latestTrack.timestamp : '無資料';
