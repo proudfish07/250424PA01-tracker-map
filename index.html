@@ -177,19 +177,18 @@
     function tryRender() {
       if (!mainData || !monitorData || !markerData) return;
 
-      // --------- 主資料：track 路徑 ---------
-      const trackWithCoord = mainData.filter(d => d.lat && d.lng && d.timestamp);
-      // 最近工作日
-      let latestTrack = trackWithCoord.reduce((max, curr) =>
-        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
-      let latestTime = latestTrack ? latestTrack.timestamp : '無資料';
-      // 最後定位日
-      let lastSuccessTrack = trackWithCoord.reduce((max, curr) =>
-        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
-      let lastSuccessTime = lastSuccessTrack ? lastSuccessTrack.timestamp : '無資料';
+  // 最近工作日
+      let latestTrack = mainData.reduce((max, curr) =>
+        (!max || (curr.timestamp && new Date(curr.timestamp) > new Date(max.timestamp))) ? curr : max, null);
+      let latestTime = latestTrack && latestTrack.timestamp ? latestTrack.timestamp : '無資料';
 
-      document.getElementById('latest-time').textContent = latestTime;
-      document.getElementById('last-success-time').textContent = lastSuccessTime;
+  // 最後定位日
+      let lastSuccessTrack = mainData.reduce((max, curr) =>
+        (!max || (curr.lat && curr.lng && curr.timestamp && new Date(curr.timestamp) > new Date(max.timestamp))) ? curr : max, null);
+      let lastSuccessTime = lastSuccessTrack && lastSuccessTrack.timestamp ? lastSuccessTrack.timestamp : '無資料';
+      
+      document.getElementById('latest-time').textContent = latestTime;         // 最近工作日
+      document.getElementById('last-success-time').textContent = lastSuccessTime; // 最後定位日
 
       // 畫出 track 路徑
       const trackPoints = trackWithCoord.map(d => ({
