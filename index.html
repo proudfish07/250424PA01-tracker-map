@@ -171,35 +171,39 @@
     const monitorSheetUrl = 'https://docs.google.com/spreadsheets/d/1yIXjdfUI8TeV5ifB6oUSeFbfc0Hj2RmMiF1Q50W84pQ/export?format=csv&gid=1274944193';
     const markerSheetUrl = 'https://docs.google.com/spreadsheets/d/1yIXjdfUI8TeV5ifB6oUSeFbfc0Hj2RmMiF1Q50W84pQ/export?format=csv&gid=730047739';
 
-    // 分別存資料
     let mainData = null, monitorData = null, markerData = null;
 
     function tryRender() {
       if (!mainData || !monitorData || !markerData) return;
 
-  // 最近工作日
+      // 最近工作日：有 timestamp 即可
       const allWithTS = mainData.filter(d => d.timestamp && d.timestamp.trim() !== "");
       let latestTrack = allWithTS.reduce((max, curr) =>
         (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
       let latestTime = latestTrack && latestTrack.timestamp ? latestTrack.timestamp : '無資料';
 
-
-  //最後定位日
-      const allWithTSLatLng = mainData.filter(d => d.timestamp && d.timestamp.trim() !== "" && d.lat && d.lng);
+      // 最後定位日：有經緯度且有 timestamp
+      const allWithTSLatLng = mainData.filter(d =>
+        d.timestamp && d.timestamp.trim() !== "" &&
+        d.lat && d.lat.trim() !== "" &&
+        d.lng && d.lng.trim() !== ""
+      );
       let lastSuccessTrack = allWithTSLatLng.reduce((max, curr) =>
         (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
       let lastSuccessTime = lastSuccessTrack && lastSuccessTrack.timestamp ? lastSuccessTrack.timestamp : '無資料';
-      
+
       document.getElementById('latest-time').textContent = latestTime;         // 最近工作日
       document.getElementById('last-success-time').textContent = lastSuccessTime; // 最後定位日
 
-      // 畫出 track 路徑
-      const trackPoints = trackWithCoord.map(d => ({
-        lat: parseFloat(d.lat),
-        lng: parseFloat(d.lng),
-        timestamp: d.timestamp,
-        note: d.note
-      }));
+      // 畫出主資料 sheet 的軌跡與最新位置
+      const trackPoints = allWithTSLatLng
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+        .map(d => ({
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lng),
+          timestamp: d.timestamp,
+          note: d.note
+        }));
       const latlngs = trackPoints.map(p => [p.lat, p.lng]);
       if (latlngs.length) {
         const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
@@ -221,18 +225,16 @@
           .bindPopup(`<b>最新位置</b><br>${latestPos.timestamp}<br>${latestPos.note || ''}`);
       }
 
-      // --------- marker sheet 的點位 ---------
-      markerData
-        .filter(d => d.lat && d.lng)
+      // marker sheet 的點位（只畫 marker，不畫路徑）
+      markerData.filter(d => d.lat && d.lng)
         .forEach(p => {
           L.marker([parseFloat(p.lat), parseFloat(p.lng)])
             .addTo(map)
             .bindPopup(`<b>${p.note || '標記點'}</b>`);
         });
 
-      // --------- 監聽點 sheet 的點位 ---------
-      monitorData
-        .filter(d => d.lat && d.lng)
+      // 監聽點 sheet 的點位
+      monitorData.filter(d => d.lat && d.lng)
         .forEach(p => {
           L.marker([parseFloat(p.lat), parseFloat(p.lng)], { icon: signalIcon })
             .addTo(map)
