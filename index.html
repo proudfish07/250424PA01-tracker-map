@@ -166,77 +166,106 @@
     };
     infoControl.addTo(map);
 
-    // 讀取 CSV
-    const csvUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSMQAVWyU35axF8U2xIOjIsvD7FpCFjsbdlOGZYhZG5XF7qGgIsOoVc0EaFSpcda6jiObHTvUtbXF9U/pub?output=csv';
+    // 主要資料與監聽點資料的 CSV 下載網址
+    const mainSheetUrl = 'https://docs.google.com/spreadsheets/d/1yIXjdfUI8TeV5ifB6oUSeFbfc0Hj2RmMiF1Q50W84pQ/export?format=csv&gid=0'; // 請依實際 gid 替換
+    const monitorSheetUrl = 'https://docs.google.com/spreadsheets/d/1yIXjdfUI8TeV5ifB6oUSeFbfc0Hj2RmMiF1Q50W84pQ/export?format=csv&gid=1274944193';
 
-    Papa.parse(csvUrl, {
+    let mainData = null, monitorData = null;
+
+    function tryRender() {
+      if (!mainData || !monitorData) return;
+
+      // --------- 主資料：track 資料與非監聽點的 marker ---------
+      const allTrack = mainData.filter(d => d.type === 'track' && d.timestamp);
+
+      // 最新定位（所有 track 中最新的）
+      let latestTrack = allTrack.reduce((max, curr) =>
+        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
+      let latestTime = latestTrack ? latestTrack.timestamp : '無資料';
+
+      // 最後定位成功（有經緯度的 track 中最新的）
+      const trackWithCoord = allTrack.filter(d => d.lat && d.lng);
+      let lastSuccessTrack = trackWithCoord.reduce((max, curr) =>
+        (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
+      let lastSuccessTime = lastSuccessTrack ? lastSuccessTrack.timestamp : '無資料';
+
+      // 顯示在資訊欄（不加「時間」二字）
+      document.getElementById('latest-time').textContent = latestTime;
+      document.getElementById('last-success-time').textContent = lastSuccessTime;
+
+      // 畫出 track 路徑和點
+      const trackPoints = trackWithCoord.map(d => ({
+        lat: parseFloat(d.lat),
+        lng: parseFloat(d.lng),
+        timestamp: d.timestamp,
+        note: d.note
+      }));
+      const latlngs = trackPoints.map(p => [p.lat, p.lng]);
+      if (latlngs.length) {
+        const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
+        map.fitBounds(polyline.getBounds());
+        trackPoints.slice(0, -1).forEach(p => {
+          if (p.note && p.note.includes('發現點')) {
+            L.marker([p.lat, p.lng], { icon: eyeIcon })
+              .addTo(map)
+              .bindPopup(`<b>${p.note}</b><br>${p.timestamp}`);
+          } else {
+            L.circleMarker([p.lat, p.lng], {
+              radius: 6, color: 'gray', fillColor: 'gray', fillOpacity: 0.6
+            }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
+          }
+        });
+        const latestPos = trackPoints[trackPoints.length - 1];
+        L.marker([latestPos.lat, latestPos.lng], { icon: animalIcon })
+          .addTo(map)
+          .bindPopup(`<b>最新位置</b><br>${latestPos.timestamp}<br>${latestPos.note || ''}`);
+      }
+
+      // 畫出主資料 sheet 的 marker（排除監聽點）
+      const markerPoints = mainData
+        .filter(d => d.type === 'marker' && d.lat && d.lng && (!d.note || !d.note.includes('監聽點')))
+        .map(d => ({
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lng),
+          note: d.note
+        }));
+      markerPoints.forEach(p => {
+        L.marker([p.lat, p.lng])
+          .addTo(map)
+          .bindPopup(`<b>${p.note || '標記點'}</b>`);
+      });
+
+      // 畫出監聽點 sheet 的 marker（全部用 signal-icon.png）
+      const monitorPoints = monitorData
+        .filter(d => d.lat && d.lng)
+        .map(d => ({
+          lat: parseFloat(d.lat),
+          lng: parseFloat(d.lng),
+          note: d.note
+        }));
+      monitorPoints.forEach(p => {
+        L.marker([p.lat, p.lng], { icon: signalIcon })
+          .addTo(map)
+          .bindPopup(`<b>${p.note || '監聽點'}</b>`);
+      });
+    }
+
+    // 載入主資料（sheet1）
+    Papa.parse(mainSheetUrl, {
       download: true,
       header: true,
       complete: function(results) {
-        // 所有 track（不管有沒有經緯度）
-        const allTrack = results.data.filter(d => d.type === 'track' && d.timestamp);
-
-        // 最新定位（所有 track 中最新的）
-        let latestTrack = allTrack.reduce((max, curr) =>
-          (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
-        let latestTime = latestTrack ? latestTrack.timestamp : '無資料';
-
-        // 最後定位成功（有經緯度的 track 中最新的）
-        const trackWithCoord = allTrack.filter(d => d.lat && d.lng);
-        let lastSuccessTrack = trackWithCoord.reduce((max, curr) =>
-          (!max || new Date(curr.timestamp) > new Date(max.timestamp)) ? curr : max, null);
-        let lastSuccessTime = lastSuccessTrack ? lastSuccessTrack.timestamp : '無資料';
-
-        // 顯示在資訊欄（不加「時間」二字）
-        document.getElementById('latest-time').textContent = latestTime;
-        document.getElementById('last-success-time').textContent = lastSuccessTime;
-
-        // 原本的資料畫點
-        const trackPoints = trackWithCoord.map(d => ({
-          lat: parseFloat(d.lat),
-          lng: parseFloat(d.lng),
-          timestamp: d.timestamp,
-          note: d.note
-        }));
-        const markerPoints = results.data
-          .filter(d => d.type === 'marker' && d.lat && d.lng)
-          .map(d => ({
-            lat: parseFloat(d.lat),
-            lng: parseFloat(d.lng),
-            note: d.note
-          }));
-
-        const latlngs = trackPoints.map(p => [p.lat, p.lng]);
-        if (latlngs.length) {
-          const polyline = L.polyline(latlngs, { color: 'blue' }).addTo(map);
-          map.fitBounds(polyline.getBounds());
-          trackPoints.slice(0, -1).forEach(p => {
-            if (p.note && p.note.includes('發現點')) {
-              L.marker([p.lat, p.lng], { icon: eyeIcon })
-                .addTo(map)
-                .bindPopup(`<b>${p.note}</b><br>${p.timestamp}`);
-            } else {
-              L.circleMarker([p.lat, p.lng], {
-                radius: 6, color: 'gray', fillColor: 'gray', fillOpacity: 0.6
-              }).addTo(map).bindPopup(`<b>${p.note || '無備註'}</b><br>${p.timestamp}`);
-            }
-          });
-          const latestPos = trackPoints[trackPoints.length - 1];
-          L.marker([latestPos.lat, latestPos.lng], { icon: animalIcon })
-            .addTo(map)
-            .bindPopup(`<b>最新位置</b><br>${latestPos.timestamp}<br>${latestPos.note || ''}`);
-        }
-        markerPoints.forEach(p => {
-          if (p.note && p.note.includes('監聽點')) {
-            L.marker([p.lat, p.lng], { icon: signalIcon })
-              .addTo(map)
-              .bindPopup(`<b>${p.note}</b>`);
-          } else {
-            L.marker([p.lat, p.lng])
-              .addTo(map)
-              .bindPopup(`<b>${p.note || '標記點'}</b>`);
-          }
-        });
+        mainData = results.data;
+        tryRender();
+      }
+    });
+    // 載入監聽點資料（監聽點 sheet）
+    Papa.parse(monitorSheetUrl, {
+      download: true,
+      header: true,
+      complete: function(results) {
+        monitorData = results.data;
+        tryRender();
       }
     });
 
